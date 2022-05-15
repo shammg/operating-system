@@ -18,7 +18,7 @@ static key_t key;
 static int m_queue_id = -1;
 static struct Message user_message;
 static int shm_clock_shmid = -1;
-static struct SharedClock *shmclock_shmptr = NULL;
+static struct SharedClock *shm_clock_shm_ptr = NULL;
 static int semid = -1;
 static struct sembuf sema_operation;
 static int pcbt_shmid = -1;
@@ -63,8 +63,8 @@ int main(int argc, char *argv[])
 	bool is_acquire = false;
 	struct SharedClock userStartClock;
 	struct SharedClock userEndClock;
-	userStartClock.second = shmclock_shmptr->second;
-	userStartClock.nanosecond = shmclock_shmptr->nanosecond;
+	userStartClock.second = shm_clock_shm_ptr->second;
+	userStartClock.nanosecond = shm_clock_shm_ptr->nanosecond;
 	bool is_ran_duration = false;
 	while(1)
 	{
@@ -75,8 +75,8 @@ int main(int argc, char *argv[])
 		//Did this child process ran for at least one second?
 		if(!is_ran_duration)
 		{
-			userEndClock.second = shmclock_shmptr->second;
-			userEndClock.nanosecond = shmclock_shmptr->nanosecond;
+			userEndClock.second = shm_clock_shm_ptr->second;
+			userEndClock.nanosecond = shm_clock_shm_ptr->nanosecond;
 			if(abs(userEndClock.nanosecond - userStartClock.nanosecond) >= 1000000000)
 			{
 				is_ran_duration = true;
@@ -256,7 +256,7 @@ void discardShm(void *shmaddr, char *shm_name , char *exe_name, char *process_ty
 void cleanUp()
 {
 	//Release [shmclock] shared memory
-	discardShm(shmclock_shmptr, "shmclock", exe_name, "Child");
+	discardShm(shm_clock_shm_ptr, "shmclock", exe_name, "Child");
 
 	//Release [pcbt] shared memory
 	discardShm(pcbt_shmptr, "pcbt", exe_name, "Child");
@@ -326,8 +326,8 @@ void getSharedMemory()
 	}
 
 	//Attaching shared memory and check if can attach it. 
-	shmclock_shmptr = shmat(shm_clock_shmid, NULL, 0);
-	if(shmclock_shmptr == (void *)( -1 ))
+	shm_clock_shm_ptr = shmat(shm_clock_shmid, NULL, 0);
+	if(shm_clock_shm_ptr == (void *)( -1 ))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
 		cleanUp();
