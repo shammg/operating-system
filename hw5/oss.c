@@ -1,8 +1,8 @@
 /* ====================================================================================================
-# Author: Duc Ngo
+# Author: Ashish Thomas
 # Course: CS4760-001 - Operating System
 # File Name: oss.c
-# Date: 10/30/19
+# Date: 
 # Purpose:
 	In this part of the assignment, you will design and implement a resource management module for our Operating System
 	Simulator (oss). In this project, you will use the deadlock avoidance strategy, using maximum claims, to manage resources.
@@ -20,16 +20,16 @@ static FILE *fpw = NULL;
 static char *exe_name;
 static key_t key;
 static struct Queue *queue;
-static struct SharedClock forkclock;
+static struct SharedClock shrdClock;
 static struct Data data;
 /* -------------------------------------------------- */
 
 
 
 /* Static GLOBAL variable (shared memory) */
-static int mqueueid = -1;
+static int m_queue_id = -1;
 static struct Message master_message;
-static int shmclock_shmid = -1;
+static int shm_clock_shm_id = -1;
 static struct SharedClock *shmclock_shmptr = NULL;
 static int semid = -1;
 static struct sembuf sema_operation;
@@ -145,8 +145,8 @@ int main(int argc, char *argv[])
 	/* =====Initialize message queue===== */
 	//Allocate shared memory if doesn't exist, and check if it can create one. Return ID for [message queue] shared memory
 	key = ftok("./oss.c", 1);
-	mqueueid = msgget(key, IPC_CREAT | 0600);
-	if(mqueueid < 0)
+	m_queue_id = msgget(key, IPC_CREAT | 0600);
+	if(m_queue_id < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not allocate [message queue] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -158,8 +158,8 @@ int main(int argc, char *argv[])
 	/* =====Initialize [shmclock] shared memory===== */
 	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [shmclock] shared memory
 	key = ftok("./oss.c", 2);
-	shmclock_shmid = shmget(key, sizeof(struct SharedClock), IPC_CREAT | 0600);
-	if(shmclock_shmid < 0)
+	shm_clock_shm_id = shmget(key, sizeof(struct SharedClock), IPC_CREAT | 0600);
+	if(shm_clock_shm_id < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not allocate [shmclock] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
 	}
 
 	//Attaching shared memory and check if can attach it. If not, delete the [shmclock] shared memory
-	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
+	shmclock_shmptr = shmat(shm_clock_shm_id, NULL, 0);
 	if(shmclock_shmptr == (void *)( -1 ))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
@@ -175,11 +175,11 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);	
 	}
 
-	//Initialize shared memory attribute of [shmclock] and forkclock
+	//Initialize shared memory attribute of [shmclock] and shrdClock
 	shmclock_shmptr->second = 0;
 	shmclock_shmptr->nanosecond = 0;
-	forkclock.second = 0;
-	forkclock.nanosecond = 0;
+	shrdClock.second = 0;
+	shrdClock.nanosecond = 0;
 
 	//--------------------------------------------------
 	/* =====Initialize semaphore===== */
@@ -245,10 +245,10 @@ int main(int argc, char *argv[])
 	{
 		//int spawn_nano = rand() % 500000000 + 1000000;
 		int spawn_nano = 100;
-		if(forkclock.nanosecond >= spawn_nano)
+		if(shrdClock.nanosecond >= spawn_nano)
 		{
-			//Reset forkclock
-			forkclock.nanosecond = 0;
+			//Reset shrdClock
+			shrdClock.nanosecond = 0;
 		
 			//Do bitmap has an open spot?
 			is_bitmap_open = false;
@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
 					fflush(fpw);
 				}
 			}//END OF: is_bitmap_open if check
-		}//END OF: forkclock.nanosecond if check
+		}//END OF: shrdClock.nanosecond if check
 
 
 		//- CRITICAL SECTION -//
@@ -352,11 +352,11 @@ int main(int argc, char *argv[])
 			master_message.mtype = pcbt_shmptr[c_index].actualPid;
 			master_message.index = c_index;
 			master_message.childPid = pcbt_shmptr[c_index].actualPid;
-			msgsnd(mqueueid, &master_message, (sizeof(struct Message) - sizeof(long)), 0);
+			msgsnd(m_queue_id, &master_message, (sizeof(struct Message) - sizeof(long)), 0);
 			//DEBUG fprintf(fpw, "%s: process with PID (%d) [%d], c:%d\n", exe_name, master_message.index, master_message.childPid, c_index);
 
 			//Waiting for the specific child to respond back
-			msgrcv(mqueueid, &master_message, (sizeof(struct Message) - sizeof(long)), 1, 0);
+			msgrcv(m_queue_id, &master_message, (sizeof(struct Message) - sizeof(long)), 1, 0);
 
 			//- CRITICAL SECTION -//
 			incShmclock();
@@ -425,7 +425,7 @@ int main(int argc, char *argv[])
 				//Send a message to child process whether if it safe to proceed the request OR not
 				master_message.mtype = pcbt_shmptr[c_index].actualPid;
 				master_message.isSafe = (isSafe) ? true : false;
-				msgsnd(mqueueid, &master_message, (sizeof(struct Message) - sizeof(long)), 0);
+				msgsnd(m_queue_id, &master_message, (sizeof(struct Message) - sizeof(long)), 0);
 			}
 
 			//- CRITICAL SECTION -//
@@ -620,13 +620,13 @@ void discardShm(int shmid, void *shmaddr, char *shm_name , char *exe_name, char 
 void cleanUp()
 {
 	//Delete [message queue] shared memory
-	if(mqueueid > 0)
+	if(m_queue_id > 0)
 	{
-		msgctl(mqueueid, IPC_RMID, NULL);
+		msgctl(m_queue_id, IPC_RMID, NULL);
 	}
 
 	//Release and delete [shmclock] shared memory
-	discardShm(shmclock_shmid, shmclock_shmptr, "shmclock", exe_name, "Master");
+	discardShm(shm_clock_shm_id, shmclock_shmptr, "shmclock", exe_name, "Master");
 
 	//Delete semaphore
 	if(semid > 0)
@@ -680,7 +680,7 @@ void incShmclock()
 	semaLock(0);
 	int r_nano = rand() % 1000000 + 1;
 
-	forkclock.nanosecond += r_nano; 
+	shrdClock.nanosecond += r_nano; 
 	shmclock_shmptr->nanosecond += r_nano;
 
 	if(shmclock_shmptr->nanosecond >= 1000000000)
