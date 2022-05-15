@@ -22,7 +22,7 @@ static struct SharedClock *shm_clock_shm_ptr = NULL;
 static int sem_id = -1;
 static struct sembuf sema_operation;
 static int pcbt_shm_id = -1;
-static struct ProcessControlBlock *pcbt_shmptr = NULL;
+static struct ProcessControlBlock *pcbt_shm_ptr = NULL;
 
 
 /* Prototype Function */
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
 			{
 				for(i = 0; i < MAX_RESOURCE; i++)
 				{
-					pcbt_shmptr[exe_index].request[i] = rand() % (pcbt_shmptr[exe_index].maximum[i] - pcbt_shmptr[exe_index].allocation[i] + 1);
+					pcbt_shm_ptr[exe_index].request[i] = rand() % (pcbt_shm_ptr[exe_index].maximum[i] - pcbt_shm_ptr[exe_index].allocation[i] + 1);
 				}
 				is_requesting = true;
 			}
@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
 			{
 				for(i = 0; i < MAX_RESOURCE; i++)
 				{
-					pcbt_shmptr[exe_index].release[i] = pcbt_shmptr[exe_index].allocation[i];
+					pcbt_shm_ptr[exe_index].release[i] = pcbt_shm_ptr[exe_index].allocation[i];
 				}
 				is_releasing = true;
 			}
@@ -166,8 +166,8 @@ int main(int argc, char *argv[])
 				{
 					for(i = 0; i < MAX_RESOURCE; i++)
 					{
-						pcbt_shmptr[exe_index].allocation[i] += pcbt_shmptr[exe_index].request[i];
-						pcbt_shmptr[exe_index].request[i] = 0;
+						pcbt_shm_ptr[exe_index].allocation[i] += pcbt_shm_ptr[exe_index].request[i];
+						pcbt_shm_ptr[exe_index].request[i] = 0;
 					}
 					is_requesting = false;
 					is_acquire = true;
@@ -178,8 +178,8 @@ int main(int argc, char *argv[])
 			{
 				for(i = 0; i < MAX_RESOURCE; i++)
 				{
-					pcbt_shmptr[exe_index].allocation[i] -= pcbt_shmptr[exe_index].release[i];
-					pcbt_shmptr[exe_index].release[i] = 0;
+					pcbt_shm_ptr[exe_index].allocation[i] -= pcbt_shm_ptr[exe_index].release[i];
+					pcbt_shm_ptr[exe_index].release[i] = 0;
 				}
 				is_acquire = false;
 			}
@@ -259,7 +259,7 @@ void cleanUp()
 	discardShm(shm_clock_shm_ptr, "shmclock", exe_name, "Child");
 
 	//Release [pcbt] shared memory
-	discardShm(pcbt_shmptr, "pcbt", exe_name, "Child");
+	discardShm(pcbt_shm_ptr, "pcbt", exe_name, "Child");
 }
 
 
@@ -359,8 +359,8 @@ void getSharedMemory()
 	}
 
 	//Attaching shared memory and check if can attach it.
-	pcbt_shmptr = shmat(pcbt_shm_id, NULL, 0);
-	if(pcbt_shmptr == (void *)( -1 ))
+	pcbt_shm_ptr = shmat(pcbt_shm_id, NULL, 0);
+	if(pcbt_shm_ptr == (void *)( -1 ))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
 		cleanUp();
