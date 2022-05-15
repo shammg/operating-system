@@ -1,8 +1,5 @@
 /* ====================================================================================================
-# Author: Duc Ngo
-# Course: CS4760-001 - Operating System
-# File Name: user.c
-# Date: 10/30/2019
+# Author: Ashish Thomas
 # Purpose:
 	The user processes are not actually doing anything, they will ask for resources at random times.
 ==================================================================================================== */
@@ -18,7 +15,7 @@ static key_t key;
 
 
 /* Static GLOBAL variable (shared memory) */
-static int mqueueid = -1;
+static int m_queue_id = -1;
 static struct Message user_message;
 static int shmclock_shmid = -1;
 static struct SharedClock *shmclock_shmptr = NULL;
@@ -72,7 +69,7 @@ int main(int argc, char *argv[])
 	while(1)
 	{
 		//Waiting for master signal to get resources
-		msgrcv(mqueueid, &user_message, (sizeof(struct Message) - sizeof(long)), getpid(), 0);
+		msgrcv(m_queue_id, &user_message, (sizeof(struct Message) - sizeof(long)), getpid(), 0);
 		//DEBUG fprintf(stderr, "%s (%d): my index [%d]\n", exe_name, getpid(), user_message.index);
 
 		//Did this child process ran for at least one second?
@@ -144,7 +141,7 @@ int main(int argc, char *argv[])
 		user_message.flag = (is_terminate) ? 0 : 1;
 		user_message.isRequest = (is_requesting) ? true : false;
 		user_message.isRelease = (is_releasing) ? true : false;
-		msgsnd(mqueueid, &user_message, (sizeof(struct Message) - sizeof(long)), 0);
+		msgsnd(m_queue_id, &user_message, (sizeof(struct Message) - sizeof(long)), 0);
 
 
 		//--------------------------------------------------
@@ -163,7 +160,7 @@ int main(int argc, char *argv[])
 			if(is_requesting)
 			{
 				//Waiting for master signal to determine if it safe to proceed the request
-				msgrcv(mqueueid, &user_message, (sizeof(struct Message) - sizeof(long)), getpid(), 0);
+				msgrcv(m_queue_id, &user_message, (sizeof(struct Message) - sizeof(long)), getpid(), 0);
 
 				if(user_message.isSafe == true)
 				{
@@ -308,8 +305,8 @@ void getSharedMemory()
 {
 	/* =====Getting [message queue] shared memory===== */
 	key = ftok("./oss.c", 1);
-	mqueueid = msgget(key, 0600);
-	if(mqueueid < 0)
+	m_queue_id = msgget(key, 0600);
+	if(m_queue_id < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not get [message queue] shared memory! Exiting...\n", exe_name);
 		cleanUp();
