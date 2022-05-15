@@ -18,14 +18,14 @@ static key_t key;
 
 
 /* Static GLOBAL variable (shared memory) */
-static int mqueueid = -1;
+static int m_queue_id = -1;
 static Message user_message;
-static int shmclock_shmid = -1;
-static SharedClock *shmclock_shmptr = NULL;
-static int semid = -1;
+static int shm_clock_shm_id = -1;
+static SharedClock *shm_clock_shm_ptr = NULL;
+static int sem_id = -1;
 static struct sembuf sema_operation;
-static int pcbt_shmid = -1;
-static ProcessControlBlock *pcbt_shmptr = NULL;
+static int pcbt_shm_id = -1;
+static ProcessControlBlock *pcbt_shm_ptr = NULL;
 
 
 /* Prototype Function */
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
 	while(1)
 	{
 		//Waiting for master signal to get resources
-		msgrcv(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), getpid(), 0);
+		msgrcv(m_queue_id, &user_message, (sizeof(Message) - sizeof(long)), getpid(), 0);
 		//DEBUG fprintf(stderr, "%s (%d): my index [%d]\n", exe_name, getpid(), user_message.index);
 
 		if(memory_reference <= 1000)
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 		user_message.flag = (is_terminate) ? 0 : 1;
 		user_message.address = address;
 		user_message.requestPage = request_page;
-		msgsnd(mqueueid, &user_message, (sizeof(Message) - sizeof(long)), 0);
+		msgsnd(m_queue_id, &user_message, (sizeof(Message) - sizeof(long)), 0);
 
 
 		//--------------------------------------------------
@@ -169,10 +169,10 @@ void discardShm(void *shmaddr, char *shm_name , char *exe_name, char *process_ty
 void cleanUp()
 {
 	//Release [shmclock] shared memory
-	discardShm(shmclock_shmptr, "shmclock", exe_name, "Child");
+	discardShm(shm_clock_shm_ptr, "shmclock", exe_name, "Child");
 
 	//Release [pcbt] shared memory
-	discardShm(pcbt_shmptr, "pcbt", exe_name, "Child");
+	discardShm(pcbt_shm_ptr, "pcbt", exe_name, "Child");
 }
 
 
@@ -187,7 +187,7 @@ void semaLock(int sem_index)
 	sema_operation.sem_num = sem_index;
 	sema_operation.sem_op = -1;
 	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
+	semop(sem_id, &sema_operation, 1);
 }
 
 
@@ -202,7 +202,7 @@ void semaRelease(int sem_index)
 	sema_operation.sem_num = sem_index;
 	sema_operation.sem_op = 1;
 	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
+	semop(sem_id, &sema_operation, 1);
 }
 
 
@@ -218,8 +218,8 @@ void getSharedMemory()
 {
 	/* =====Getting [message queue] shared memory===== */
 	key = ftok("./oss.c", 1);
-	mqueueid = msgget(key, 0600);
-	if(mqueueid < 0)
+	m_queue_id = msgget(key, 0600);
+	if(m_queue_id < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not get [message queue] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -230,8 +230,8 @@ void getSharedMemory()
 	//--------------------------------------------------
 	/* =====Getting [shmclock] shared memory===== */
 	key = ftok("./oss.c", 2);
-	shmclock_shmid = shmget(key, sizeof(SharedClock), 0600);
-	if(shmclock_shmid < 0)
+	shm_clock_shm_id = shmget(key, sizeof(SharedClock), 0600);
+	if(shm_clock_shm_id < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not get [shmclock] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -239,8 +239,8 @@ void getSharedMemory()
 	}
 
 	//Attaching shared memory and check if can attach it. 
-	shmclock_shmptr = shmat(shmclock_shmid, NULL, 0);
-	if(shmclock_shmptr == (void *)( -1 ))
+	shm_clock_shm+ptr = shmat(shm_clock_shm_id, NULL, 0);
+	if(shm_clock_shm_ptr == (void *)( -1 ))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -251,8 +251,8 @@ void getSharedMemory()
 	//--------------------------------------------------
 	/* =====Getting semaphore===== */
 	key = ftok("./oss.c", 3);
-	semid = semget(key, 1, 0600);
-	if(semid == -1)
+	sem_id = semget(key, 1, 0600);
+	if(sem_id == -1)
 	{
 		fprintf(stderr, "%s ERROR: fail to attach a private semaphore! Exiting...\n", exe_name);
 		cleanUp();
@@ -263,8 +263,8 @@ void getSharedMemory()
 	/* =====Getting process control block table===== */
 	key = ftok("./oss.c", 4);
 	size_t process_table_size = sizeof(ProcessControlBlock) * MAX_PROCESS;
-	pcbt_shmid = shmget(key, process_table_size, 0600);
-	if(pcbt_shmid < 0)
+	pcbt_shm_id = shmget(key, process_table_size, 0600);
+	if(pcbt_shm_id < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not get [pcbt] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -272,8 +272,8 @@ void getSharedMemory()
 	}
 
 	//Attaching shared memory and check if can attach it.
-	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
-	if(pcbt_shmptr == (void *)( -1 ))
+	pcbt_shm_ptr = shmat(pcbt_shm_id, NULL, 0);
+	if(pcbt_shm_ptr == (void *)( -1 ))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
 		cleanUp();
