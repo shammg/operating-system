@@ -21,7 +21,7 @@ static int shm_clock_shmid = -1;
 static struct SharedClock *shm_clock_shm_ptr = NULL;
 static int sem_id = -1;
 static struct sembuf sema_operation;
-static int pcbt_shmid = -1;
+static int pcbt_shm_id = -1;
 static struct ProcessControlBlock *pcbt_shmptr = NULL;
 
 
@@ -350,8 +350,8 @@ void getSharedMemory()
 	/* =====Getting process control block table===== */
 	key = ftok("./oss.c", 4);
 	size_t process_table_size = sizeof(struct ProcessControlBlock) * MAX_PROCESS;
-	pcbt_shmid = shmget(key, process_table_size, 0600);
-	if(pcbt_shmid < 0)
+	pcbt_shm_id = shmget(key, process_table_size, 0600);
+	if(pcbt_shm_id < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not get [pcbt] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -359,7 +359,7 @@ void getSharedMemory()
 	}
 
 	//Attaching shared memory and check if can attach it.
-	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
+	pcbt_shmptr = shmat(pcbt_shm_id, NULL, 0);
 	if(pcbt_shmptr == (void *)( -1 ))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
