@@ -30,11 +30,11 @@ static struct Data data;
 static int m_queue_id = -1;
 static struct Message master_message;
 static int shm_clock_shm_id = -1;
-static struct SharedClock *shmclock_shmptr = NULL;
-static int semid = -1;
+static struct SharedClock *shm_clock_shm_ptr = NULL;
+static int sem_id = -1;
 static struct sembuf sema_operation;
-static int pcbt_shmid = -1;
-static struct ProcessControlBlock *pcbt_shmptr = NULL;
+static int pcbt_shm_id = -1;
+static struct ProcessControlBlock *pcbt_shm_ptr = NULL;
 /* -------------------------------------------------- */
 
 
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
 	//Optional Variables
 	char log_file[256] = "log.dat";
 	bool verbose = false;
-	int line_count = 0;	//NOTE: file line count is not implemented, but skeleton structure is setup.
+	int line_count = 0;	
 
 	int opt;
 	while((opt = getopt(argc, argv, "hl:v")) != -1)
@@ -167,8 +167,8 @@ int main(int argc, char *argv[])
 	}
 
 	//Attaching shared memory and check if can attach it. If not, delete the [shmclock] shared memory
-	shmclock_shmptr = shmat(shm_clock_shm_id, NULL, 0);
-	if(shmclock_shmptr == (void *)( -1 ))
+	shm_clock_shm_ptr = shmat(shm_clock_shm_id, NULL, 0);
+	if(shm_clock_shm_ptr == (void *)( -1 ))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -176,8 +176,8 @@ int main(int argc, char *argv[])
 	}
 
 	//Initialize shared memory attribute of [shmclock] and shrdClock
-	shmclock_shmptr->second = 0;
-	shmclock_shmptr->nanosecond = 0;
+	shm_clock_shm_ptr->second = 0;
+	shm_clock_shm_ptr->nanosecond = 0;
 	shrdClock.second = 0;
 	shrdClock.nanosecond = 0;
 
@@ -186,8 +186,8 @@ int main(int argc, char *argv[])
 	//Creating 3 semaphores elements
 	//Create semaphore if doesn't exist with 666 bits permission. Return error if semaphore already exists
 	key = ftok("./oss.c", 3);
-	semid = semget(key, 1, IPC_CREAT | IPC_EXCL | 0600);
-	if(semid == -1)
+	sem_id = semget(key, 1, IPC_CREAT | IPC_EXCL | 0600);
+	if(sem_id == -1)
 	{
 		fprintf(stderr, "%s ERROR: failed to create a new private semaphore! Exiting...\n", exe_name);
 		cleanUp();
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
 	}
 	
 	//Initialize the semaphore(s) in our set to 1
-	semctl(semid, 0, SETVAL, 1);	//Semaphore #0: for [shmclock] shared memory
+	semctl(sem_id, 0, SETVAL, 1);	//Semaphore #0: for [shmclock] shared memory
 	
 
 	//--------------------------------------------------
@@ -203,8 +203,8 @@ int main(int argc, char *argv[])
 	//Allocate shared memory if doesn't exist, and check if can create one. Return ID for [pcbt] shared memory
 	key = ftok("./oss.c", 4);
 	size_t process_table_size = sizeof(struct ProcessControlBlock) * MAX_PROCESS;
-	pcbt_shmid = shmget(key, process_table_size, IPC_CREAT | 0600);
-	if(pcbt_shmid < 0)
+	pcbt_shm_id = shmget(key, process_table_size, IPC_CREAT | 0600);
+	if(pcbt_shm_id < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not allocate [pcbt] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -212,8 +212,8 @@ int main(int argc, char *argv[])
 	}
 
 	//Attaching shared memory and check if can attach it. If not, delete the [pcbt] shared memory
-	pcbt_shmptr = shmat(pcbt_shmid, NULL, 0);
-	if(pcbt_shmptr == (void *)( -1 ))
+	pcbt_shm_ptr = shmat(pcbt_shm_id, NULL, 0);
+	if(pcbt_shm_ptr == (void *)( -1 ))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [pcbt] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
 	}
 
 	//Init process control block table variable
-	initPCBT(pcbt_shmptr);
+	initPCBT(pcbt_shm_ptr);
 
 
 	//--------------------------------------------------
@@ -315,16 +315,16 @@ int main(int argc, char *argv[])
 					bitmap[last_index / 8] |= (1 << (last_index % 8));
 					
 					//Initialize user process information to the process control block table
-					initPCB(&pcbt_shmptr[last_index], last_index, pid, data);
+					initPCB(&pcbt_shm_ptr[last_index], last_index, pid, data);
 
 					//Add the process to highest queue
 					enQueue(queue, last_index);
 
 					//Display creation time
 					fprintf(stderr, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", exe_name, 
-						pcbt_shmptr[last_index].pidIndex, pcbt_shmptr[last_index].actualPid, shmclock_shmptr->second, shmclock_shmptr->nanosecond);
+						pcbt_shm_ptr[last_index].pidIndex, pcbt_shm_ptr[last_index].actualPid, shm_clock_shm_ptr->second, shm_clock_shm_ptr->nanosecond);
 					fprintf(fpw, "%s: generating process with PID (%d) [%d] and putting it in queue at time %d.%d\n", exe_name, 
-						pcbt_shmptr[last_index].pidIndex, pcbt_shmptr[last_index].actualPid, shmclock_shmptr->second, shmclock_shmptr->nanosecond);
+						pcbt_shm_ptr[last_index].pidIndex, pcbt_shm_ptr[last_index].actualPid, shm_clock_shm_ptr->second, shm_clock_shm_ptr->nanosecond);
 					fflush(fpw);
 				}
 			}//END OF: is_bitmap_open if check
@@ -349,9 +349,9 @@ int main(int argc, char *argv[])
 
 			//Sending a message to a specific child to tell him it is his turn
 			int c_index = next.next->index;
-			master_message.mtype = pcbt_shmptr[c_index].actualPid;
+			master_message.mtype = pcbt_shm_ptr[c_index].actualPid;
 			master_message.index = c_index;
-			master_message.childPid = pcbt_shmptr[c_index].actualPid;
+			master_message.childPid = pcbt_shm_ptr[c_index].actualPid;
 			msgsnd(m_queue_id, &master_message, (sizeof(struct Message) - sizeof(long)), 0);
 			//DEBUG fprintf(fpw, "%s: process with PID (%d) [%d], c:%d\n", exe_name, master_message.index, master_message.childPid, c_index);
 
@@ -365,9 +365,9 @@ int main(int argc, char *argv[])
 			if(master_message.flag == 0)
 			{
 				fprintf(stderr, "%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
-					exe_name, master_message.index, master_message.childPid, shmclock_shmptr->second, shmclock_shmptr->nanosecond);
+					exe_name, master_message.index, master_message.childPid, shm_clock_shm_ptr->second, shm_clock_shm_ptr->nanosecond);
 				fprintf(fpw, "%s: process with PID (%d) [%d] has finish running at my time %d.%d\n",
-					exe_name, master_message.index, master_message.childPid, shmclock_shmptr->second, shmclock_shmptr->nanosecond);
+					exe_name, master_message.index, master_message.childPid, shm_clock_shm_ptr->second, shm_clock_shm_ptr->nanosecond);
 				fflush(fpw);
 
 				//Remove the process out of the queue
@@ -420,10 +420,10 @@ int main(int argc, char *argv[])
 				fflush(fpw);
 
 				//Execute the Banker Algorithm
-				bool isSafe = bankerAlgorithm(fpw, &line_count, verbose, &data, pcbt_shmptr, queue, c_index);
+				bool isSafe = bankerAlgorithm(fpw, &line_count, verbose, &data, pcbt_shm_ptr, queue, c_index);
 				
 				//Send a message to child process whether if it safe to proceed the request OR not
-				master_message.mtype = pcbt_shmptr[c_index].actualPid;
+				master_message.mtype = pcbt_shm_ptr[c_index].actualPid;
 				master_message.isSafe = (isSafe) ? true : false;
 				msgsnd(m_queue_id, &master_message, (sizeof(struct Message) - sizeof(long)), 0);
 			}
@@ -521,7 +521,7 @@ void masterHandler(int signum)
 	//Print out basic statistic
 	fprintf(stderr, "- Master PID: %d\n", getpid());
 	fprintf(stderr, "- Number of forking during this execution: %d\n", fork_number);
-	fprintf(stderr, "- Final simulation time of this execution: %d.%d\n", shmclock_shmptr->second, shmclock_shmptr->nanosecond);
+	fprintf(stderr, "- Final simulation time of this execution: %d.%d\n", shm_clock_shm_ptr->second, shm_clock_shm_ptr->nanosecond);
 
 	cleanUp();
 
@@ -626,16 +626,16 @@ void cleanUp()
 	}
 
 	//Release and delete [shmclock] shared memory
-	discardShm(shm_clock_shm_id, shmclock_shmptr, "shmclock", exe_name, "Master");
+	discardShm(shm_clock_shm_id, shm_clock_shm_ptr, "shmclock", exe_name, "Master");
 
 	//Delete semaphore
-	if(semid > 0)
+	if(sem_id > 0)
 	{
-		semctl(semid, 0, IPC_RMID);
+		semctl(sem_id, 0, IPC_RMID);
 	}
 
 	//Release and delete [pcbt] shared memory
-	discardShm(pcbt_shmid, pcbt_shmptr, "pcbt", exe_name, "Master");
+	discardShm(pcbt_shm_id, pcbt_shm_ptr, "pcbt", exe_name, "Master");
 }
 
 
@@ -650,7 +650,7 @@ void semaLock(int sem_index)
 	sema_operation.sem_num = sem_index;
 	sema_operation.sem_op = -1;
 	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
+	semop(sem_id, &sema_operation, 1);
 }
 
 
@@ -665,7 +665,7 @@ void semaRelease(int sem_index)
 	sema_operation.sem_num = sem_index;
 	sema_operation.sem_op = 1;
 	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
+	semop(sem_id, &sema_operation, 1);
 }
 
 
@@ -681,12 +681,12 @@ void incShmclock()
 	int r_nano = rand() % 1000000 + 1;
 
 	shrdClock.nanosecond += r_nano; 
-	shmclock_shmptr->nanosecond += r_nano;
+	shm_clock_shm_ptr->nanosecond += r_nano;
 
-	if(shmclock_shmptr->nanosecond >= 1000000000)
+	if(shm_clock_shm_ptr->nanosecond >= 1000000000)
 	{
-		shmclock_shmptr->second++;
-		shmclock_shmptr->nanosecond = 1000000000 - shmclock_shmptr->nanosecond;
+		shm_clock_shm_ptr->second++;
+		shm_clock_shm_ptr->nanosecond = 1000000000 - shm_clock_shm_ptr->nanosecond;
 	}
 
 	semaRelease(0);
