@@ -19,7 +19,7 @@ static int m_queue_id = -1;
 static struct Message user_message;
 static int shm_clock_shmid = -1;
 static struct SharedClock *shm_clock_shm_ptr = NULL;
-static int semid = -1;
+static int sem_id = -1;
 static struct sembuf sema_operation;
 static int pcbt_shmid = -1;
 static struct ProcessControlBlock *pcbt_shmptr = NULL;
@@ -274,7 +274,7 @@ void semaLock(int sem_index)
 	sema_operation.sem_num = sem_index;
 	sema_operation.sem_op = -1;
 	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
+	semop(sem_id, &sema_operation, 1);
 }
 
 
@@ -289,7 +289,7 @@ void semaRelease(int sem_index)
 	sema_operation.sem_num = sem_index;
 	sema_operation.sem_op = 1;
 	sema_operation.sem_flg = 0;
-	semop(semid, &sema_operation, 1);
+	semop(sem_id, &sema_operation, 1);
 }
 
 
@@ -338,8 +338,8 @@ void getSharedMemory()
 	//--------------------------------------------------
 	/* =====Getting semaphore===== */
 	key = ftok("./oss.c", 3);
-	semid = semget(key, 1, 0600);
-	if(semid == -1)
+	sem_id = semget(key, 1, 0600);
+	if(sem_id == -1)
 	{
 		fprintf(stderr, "%s ERROR: fail to attach a private semaphore! Exiting...\n", exe_name);
 		cleanUp();
