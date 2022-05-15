@@ -17,7 +17,7 @@ static key_t key;
 /* Static GLOBAL variable (shared memory) */
 static int m_queue_id = -1;
 static struct Message user_message;
-static int shm_clock_shmid = -1;
+static int shm_clock_shm_id = -1;
 static struct SharedClock *shm_clock_shm_ptr = NULL;
 static int sem_id = -1;
 static struct sembuf sema_operation;
@@ -317,8 +317,8 @@ void getSharedMemory()
 	//--------------------------------------------------
 	/* =====Getting [shmclock] shared memory===== */
 	key = ftok("./oss.c", 2);
-	shm_clock_shmid = shmget(key, sizeof(struct SharedClock), 0600);
-	if(shm_clock_shmid < 0)
+	shm_clock_shm_id = shmget(key, sizeof(struct SharedClock), 0600);
+	if(shm_clock_shm_id < 0)
 	{
 		fprintf(stderr, "%s ERROR: could not get [shmclock] shared memory! Exiting...\n", exe_name);
 		cleanUp();
@@ -326,7 +326,7 @@ void getSharedMemory()
 	}
 
 	//Attaching shared memory and check if can attach it. 
-	shm_clock_shm_ptr = shmat(shm_clock_shmid, NULL, 0);
+	shm_clock_shm_ptr = shmat(shm_clock_shm_id, NULL, 0);
 	if(shm_clock_shm_ptr == (void *)( -1 ))
 	{
 		fprintf(stderr, "%s ERROR: fail to attach [shmclock] shared memory! Exiting...\n", exe_name);
